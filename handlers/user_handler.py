@@ -1,3 +1,4 @@
+import requests
 from aiogram import Router, types
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -6,10 +7,14 @@ from keyboard.main_menu import create_price_monitoring_keyboard
 
 router = Router()
 
+
 class UserInfoStates(StatesGroup):
+    waiting_for_link_id = State()
+    waiting_for_article = State()
     waiting_for_name = State()
     waiting_for_age = State()
     waiting_for_feedback = State()
+
 
 @router.message(UserInfoStates.waiting_for_name)
 async def process_name(message: types.Message, state: FSMContext):
@@ -17,6 +22,7 @@ async def process_name(message: types.Message, state: FSMContext):
     await state.update_data(name=name)
     await message.answer("Спасибо, {}! Сколько вам лет?".format(name))
     await state.set_state(UserInfoStates.waiting_for_age)
+
 
 @router.message(UserInfoStates.waiting_for_age)
 async def process_age(message: types.Message, state: FSMContext):
