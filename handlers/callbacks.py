@@ -1,5 +1,9 @@
+import asyncio
+import time
 import requests
+import schedule
 from aiogram import Router, types
+from aiogram.client import bot
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery
 from database.database import SessionLocal, Feedback, ProductLink
@@ -7,6 +11,7 @@ from handlers.user_handler import UserInfoStates
 from keyboard.main_menu import create_price_monitoring_keyboard, create_link_management_keyboard
 
 router = Router()
+previous_prices = {}
 
 
 @router.message(lambda message: message.text == '/enter_article')
@@ -14,6 +19,46 @@ async def cmd_enter_article(message: types.Message, state: FSMContext):
     await message.answer("Пожалуйста, введите артикул или ссылку на товар:")
     await state.set_state(UserInfoStates.waiting_for_article)
 
+
+async def check_price(product_id, user_id):
+    headers = {
+        'accept': '*/*',
+        'user-agent': 'Mozilla/5.0',
+    }
+
+    response = requests.get(f'https://card.wb.ru/cards/v2/detail?appType=1&curr=rub&dest=-1255987&nm={product_id}',
+                            headers=headers)
+
+    if response.status_code == 200:
+        data = response.json()
+        if data.get('data') and data['data'].get('products'):
+            product_info = data['data']['products'][0]
+            current_price = product_info['sizes'][0]['price']['total'] / 100
+
+            # Сравнение с предыдущей ценой
+            if product_id in previous_prices:
+                if previous_prices[product_id] != current_price:
+                    await bot.send_message(user_id,
+                                           f"Цена на товар ID {product_id} изменилась с {previous_prices[product_id]} руб. на {current_price} руб.")
+
+            # Обновление предыдущей цены
+            previous_prices[product_id] = current_price
+
+
+def job():
+    db = SessionLocal()
+    products_to_check = db.query(ProductLink).all()  # Получаем все сохраненные товары из БД
+
+    for product in products_to_check:
+        asyncio.run(check_price(product.product_id, product.user_id))
+
+    db.close()
+    # Запуск задачи каждые 60 минут
+    schedule.every(60).minutes.do(job)
+
+    while True:
+        schedule.run_pending()
+        time.sleep(1).minutes.do(job)
 
 @router.message(UserInfoStates.waiting_for_article)
 async def process_article(message: types.Message, state: FSMContext):
