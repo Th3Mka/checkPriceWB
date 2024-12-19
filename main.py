@@ -5,6 +5,7 @@ from config_data.config import Config, load_config
 from handlers.commands import router as commands_router
 from handlers.callbacks import router as callbacks_router
 from handlers.user_handler import router as user_router
+from aiogram.client.session.aiohttp import AiohttpSession
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -15,7 +16,8 @@ async def main():
     config: Config = load_config()
 
     # Создаем экземпляр бота с токеном
-    bot = Bot(token=config.tg_bot.token)
+    session = AiohttpSession(proxy="http://proxy.server:3128")
+    bot = Bot(token=config.tg_bot.token, session=session)
 
     # Создаем диспетчер без хранилища состояний
     dp = Dispatcher()
